@@ -1,0 +1,164 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --ps-bg: #080808;
+    --ps-surface: #121212;
+    --ps-black: #fafafa;
+    --ps-white: #080808;
+    --ps-orange: #f35815;
+    --ps-line: #262626;
+    --ps-muted: #888888;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: var(--ps-bg);
+    color: var(--ps-black);
+    font-weight: 400;
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  code,
+  pre,
+  .font-mono {
+    font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+}
+
+/* PlanetScale Grid Background - Dark Mode */
+.bg-ps-grid {
+  background-color: #080808;
+  background-image:
+    linear-gradient(to right, rgba(38, 38, 38, 0.6) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(38, 38, 38, 0.6) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-attachment: fixed;
+}
+
+/* Custom Scrollbar for dark theme code blocks */
+::-webkit-scrollbar {
+  height: 4px;
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: #080808;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #262626;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #f35815;
+}
+
+/* Staggered Fade-in Animation */
+@keyframes psFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  opacity: 0;
+  animation: psFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.delay-0 {
+  animation-delay: 0.02s;
+}
+
+.delay-1 {
+  animation-delay: 0.08s;
+}
+
+.delay-2 {
+  animation-delay: 0.14s;
+}
+
+.delay-3 {
+  animation-delay: 0.20s;
+}
+
+.delay-4 {
+  animation-delay: 0.26s;
+}
+
+/* Custom row hover effects for dark theme project table */
+.project-row {
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.project-row:hover {
+  background-color: #fafafa;
+  color: #080808;
+}
+
+/* Custom selection */
+::selection {
+  background: #f35815;
+  color: #ffffff;
+}
+
+/* ==========================================
+   HIERARCHICAL SLANTED DASHED DIVIDER SYSTEM
+   ========================================== */
+
+/* Level 1: Primary Section Divider (Zinc Monochromatic) */
+.slanted-dashed-divider {
+  height: 5px;
+  width: 100%;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    #3f3f46 0,
+    #3f3f46 1.5px,
+    transparent 1.5px,
+    transparent 5.5px
+  );
+  opacity: 0.8;
+}
+
+/* Level 2: Subtle Component Divider */
+.slanted-dashed-divider-subtle {
+  height: 4px;
+  width: 100%;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    #27272a 0,
+    #27272a 1.5px,
+    transparent 1.5px,
+    transparent 5px
+  );
+  opacity: 0.6;
+}
+
+/* Level 3: Accent Featured Divider (Orange Accent) */
+.slanted-dashed-divider-orange {
+  height: 5px;
+  width: 100%;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    #f35815 0,
+    #f35815 1.5px,
+    transparent 1.5px,
+    transparent 5.5px
+  );
+  opacity: 0.6;
+}
+
+/* Outer Container Frame Styling */
+.ps-main-container {
+  border: 1px solid #262626;
+  position: relative;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.9);
+}

@@ -1,0 +1,182 @@
+---
+title: "Architecting Resilient Distributed Systems: Beyond Eventual Consistency"
+date: "2025.02.15"
+readTime: "12min"
+tag: "distributed-systems"
+author: "Swastik"
+summary: "A deep dive into building fault-tolerant, high-throughput distributed architectures using event sourcing, state-based CRDTs, and edge transaction boundaries."
+slug: "architecting-resilient-distributed-systems"
+---
+
+# Architecting Resilient Distributed Systems: Beyond Eventual Consistency
+
+*Published on February 15, 2025 — 12 min read · Category: distributed-systems · Author: Swastik*
+
+---
+
+Modern web applications operating at global scale can no longer rely on single-region ACID databases or synchronous request-response loops. When network partitions occur—and physics guarantees they will—distributed systems must explicitly balance latency, availability, and consistency bounds.
+
+In this deep dive, we explore how to architect high-throughput distributed backends using **Event Sourcing**, **Conflict-Free Replicated Data Types (CRDTs)**, and **Edge Transaction Boundaries**.
+
+> [!NOTE]
+> **Key Architectural Takeaway:** Don't fight the PACELC theorem. Design your data structures so that merge conflicts are mathematically impossible rather than attempting to prevent concurrent writes with global locks.
+
+---
+
+## 1. The PACELC Trade-Off Matrix
+
+While the CAP theorem describes system behavior during an active network partition, the **PACELC theorem** extends this to normal operating conditions:
+
+> If there is a **P**artition, trade off **A**vailability vs. **C**onsistency; **E**lse, trade off **L**atency vs. **C**onsistency.
+
+```
+                    ┌─────────────────────────┐
+                    │ Network State Check     │
+                    └────────────┬────────────┘
+                                 │
+                   ┌─────────────┴─────────────┐
+                   ▼                           ▼
+           [ Partition Active ]        [ Normal Operation ]
+                   │                           │
+           ┌───────┴───────┐           ┌───────┴───────┐
+           ▼               ▼           ▼               ▼
+     [Availability] [Consistency]   [Latency]    [Consistency]
+        (Dynamo)      (Spanner)     (MongoDB)     (Postgres)
+```
+
+### System Latency & Consistency Comparison
+
+| Architecture Pattern | Read Latency (p99) | Write Latency (p99) | Partition Handling | Consistency Guarantee |
+| :--- | :--- | :--- | :--- | :--- |
+| **Global Raft Consensus** | ~45ms | ~180ms | Blocks writes | Strong / Linearizable |
+| **Master-Replica (Sync)** | ~5ms | ~120ms | Degrades write availability | Causal Consistency |
+| **Edge CRDT (State-based)** | **< 2ms** | **< 2ms** | **Zero-downtime merge** | **Strong Eventual** |
+| **Event-Sourced Edge** | ~4ms | ~8ms | Appends locally | Eventual / Monotonic |
+
+---
+
+## 2. Implementing a State-Based LWW-Element-Set in Rust
+
+To achieve zero-downtime offline writes across multi-region edge nodes, we implement a state-based CRDT (CvRDT) for a key-value store in Rust.
+
+```rust
+use std::collections::HashMap;
+use std::hash::Hash;
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Element<T> {
+    pub value: T,
+    pub timestamp: u128,
+    pub node_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LwwElementSet<K: Eq + Hash + Clone, V: Clone> {
+    pub add_set: HashMap<K, Element<V>>,
+    pub remove_set: HashMap<K, u128>,
+}
+
+impl<K: Eq + Hash + Clone, V: Clone> LwwElementSet<K, V> {
+    pub fn new() -> Self {
+        Self {
+            add_set: HashMap::new(),
+            remove_set: HashMap::new(),
+        }
+    }
+
+    /// Insert or update an element with a monotonic timestamp
+    pub fn insert(&mut self, key: K, value: V, timestamp: u128, node_id: String) {
+        let element = Element { value, timestamp, node_id };
+        self.add_set.entry(key)
+            .and_modify(|e| {
+                if timestamp > e.timestamp {
+                    *e = element.clone();
+                }
+            })
+            .or_insert(element);
+    }
+
+    /// Convergent merge function guarantees commutativity and associativity
+    pub fn merge(&mut self, incoming: Self) {
+        for (key, inc_elem) in incoming.add_set {
+            self.add_set.entry(key)
+                .and_modify(|existing| {
+                    if inc_elem.timestamp > existing.timestamp {
+                        *existing = inc_elem.clone();
+                    }
+                })
+                .or_insert(inc_elem);
+        }
+
+        for (key, inc_ts) in incoming.remove_set {
+            self.remove_set.entry(key)
+                .and_modify(|existing_ts| {
+                    if inc_ts > *existing_ts {
+                        *existing_ts = inc_ts;
+                    }
+                })
+                .or_insert(inc_ts);
+        }
+    }
+}
+```
+
+> [!TIP]
+> **Clock Skew Mitigation:** Always pair wall-clock timestamps with Hybrid Logical Clocks (HLC) to maintain causal ordering across nodes with NTP drift.
+
+---
+
+## 3. High-Throughput Event Ingestion with PostgreSQL & Timescale
+
+When streaming telemetry data or high-frequency client operations, raw INSERT statements can overwhelm database connections. We utilize **PostgreSQL Common Table Expressions (CTEs)** and memory buffer queues:
+
+```sql
+-- High-throughput bulk write CTE for telemetry batch ingestion
+WITH batch_data AS (
+  SELECT * FROM jsonb_to_recordset($1::jsonb) AS x(
+    device_id UUID,
+    payload JSONB,
+    recorded_at TIMESTAMPTZ
+  )
+),
+inserted_events AS (
+  INSERT INTO telemetry_events (device_id, payload, recorded_at)
+  SELECT device_id, payload, recorded_at FROM batch_data
+  ON CONFLICT (device_id, recorded_at) DO UPDATE
+  SET payload = telemetry_events.payload || EXCLUDED.payload
+  RETURNING id, device_id
+)
+SELECT count(*) AS ingested_count FROM inserted_events;
+```
+
+```typescript
+// Node.js Edge Stream Ingest Worker with micro-batching
+import { BufferQueue } from '@planetscale/edge-buffer';
+
+const telemetryQueue = new BufferQueue<TelemetryEvent>({
+  maxBatchSize: 1000,
+  flushIntervalMs: 250,
+  onFlush: async (events) => {
+    await db.query(BULK_INSERT_CTE, [JSON.stringify(events)]);
+  },
+});
+
+export function handleIncomingTelemetry(event: TelemetryEvent) {
+  telemetryQueue.push(event);
+}
+```
+
+---
+
+## 4. Operational Checklist for Edge Resilience
+
+- [x] **Zero Synchronous Cross-Region Locks:** Use local write buffers at the edge.
+- [x] **Idempotent API Handlers:** Request IDs must be deduplicated via Redis hyperloglogs or bloom filters.
+- [x] **Graceful Fallbacks:** Degrade to read-only mode when origin region ping latency exceeds 300ms.
+- [x] **Telemetry Tracing:** Inject OpenTelemetry trace contexts across edge workers and upstream microservices.
+- [x] **Chaos Testing:** Frequently simulate region outages using Chaos Mesh to verify partition tolerance.
+
+---
+
+> Written by **Swastik**. Feedback and questions are welcome via email or GitHub.
