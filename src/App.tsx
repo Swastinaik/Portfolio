@@ -39,9 +39,9 @@ function HomePage({
   };
 
   return (
-    <div className="min-h-screen bg-ps-grid bg-[#080808] text-[#fafafa] font-sans antialiased py-6 sm:py-10 px-3 sm:px-6">
+    <div className="min-h-screen bg-ps-grid bg-[#000000] text-[#fafafa] font-sans antialiased py-6 sm:py-10 px-3 sm:px-6">
       {/* Centered Document Layout: Max Width 900px, 1px Outer Border */}
-      <main className="max-w-[900px] mx-auto ps-main-container bg-[#080808] shadow-none rounded-none overflow-hidden">
+      <main className="max-w-[900px] mx-auto ps-main-container bg-[#080808] rounded-none">
         {/* Top Bar: LIVE Status & Resume */}
         <TopBar
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}

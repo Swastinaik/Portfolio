@@ -12,8 +12,8 @@ interface BlogListPageProps {
 }
 
 export const BlogListPage: React.FC<BlogListPageProps> = ({
-  onOpenResume = () => {},
-  onOpenCommandPalette = () => {},
+  onOpenResume = () => { },
+  onOpenCommandPalette = () => { },
 }) => {
   const posts = useMemo(() => getAllPostsFromFolder(), []);
   const [searchQuery, setSearchQuery] = useState('');
@@ -116,11 +116,10 @@ export const BlogListPage: React.FC<BlogListPageProps> = ({
                   <button
                     key={tag}
                     onClick={() => setSelectedTag(tag)}
-                    className={`font-mono text-[11px] px-2.5 py-1 uppercase transition-colors border ${
-                      isActive
+                    className={`font-mono text-[11px] px-2.5 py-1 uppercase transition-colors border ${isActive
                         ? 'bg-[#f35815] text-[#ffffff] border-[#f35815]'
                         : 'bg-[#121212] text-[#888888] border-[#262626] hover:border-[#525252] hover:text-[#fafafa]'
-                    }`}
+                      }`}
                   >
                     {tag}
                   </button>
